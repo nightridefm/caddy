@@ -46,6 +46,11 @@ type templateContext struct {
 	config *Templates
 }
 
+// CustomContext is exportable templateContext
+type CustomContext struct {
+	templateContext
+}
+
 // OriginalReq returns the original, unmodified, un-rewritten request as
 // it originally came in over the wire.
 func (c templateContext) OriginalReq() http.Request {
@@ -150,6 +155,7 @@ func (c templateContext) executeTemplateInBuffer(tplName string, buf *bytes.Buff
 		"markdown":         c.funcMarkdown,
 		"splitFrontMatter": c.funcSplitFrontMatter,
 		"listFiles":        c.funcListFiles,
+		"custom":           c.funcCustom,
 	})
 
 	parsedTpl, err := tpl.Parse(buf.String())
@@ -358,5 +364,18 @@ var bufPool = sync.Pool{
 // at time of writing, sprig.FuncMap() makes a copy, thus
 // involves iterating the whole map, so do it just once
 var sprigFuncMap = sprig.FuncMap()
+
+// TemplateFuncs contains plugin-defined functions
+// for execution in templates.
+var TemplateFuncs = template.FuncMap{}
+
+func (c templateContext) funcCustom(fname string) string {
+	f, ok := TemplateFuncs[fname]
+	if ok {
+		// If a function is found, cast it and call with templateContext
+		return f.(func(templateContext) string)(c)
+	}
+	return ""
+}
 
 const recursionPreventionHeader = "Caddy-Templates-Include"
